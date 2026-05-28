@@ -1,0 +1,130 @@
+// === STL.js Expert Edition (Handsontable + Workflows + Export) ===
+
+(function(){
+  // --- Parse table into array of arrays ---
+  function parseTable() {
+    const table = document.querySelector("#dataTable table.htCore");
+    if (!table) { console.warn("No dataTable found."); return []; }
+    const rows = [];
+    table.querySelectorAll("tbody tr").forEach(tr => {
+      const cells = [];
+      tr.querySelectorAll("td").forEach(td => {
+        cells.push(td.textContent.trim());
+      });
+      rows.push(cells);
+    });
+    return rows;
+  }
+
+  // --- Write array of arrays back into table ---
+  function outputTable(arr) {
+    const table = document.querySelector("#dataTable table.htCore");
+    if (!table) { console.warn("No dataTable found."); return; }
+    const trs = table.querySelectorAll("tbody tr");
+    arr.forEach((row, i) => {
+      if (trs[i]) {
+        const tds = trs[i].querySelectorAll("td");
+        row.forEach((val, j) => {
+          if (tds[j]) tds[j].textContent = val;
+        });
+      }
+    });
+    console.log("%cHandsontable grid updated","color:orange;font-weight:bold;");
+  }
+
+  window.STL = {
+    expertMode: false,
+    workflows: {},
+
+    // --- Categories (shortened for clarity, expand as needed) ---
+    modifying: {
+      remove_if: (arr,pred) => arr.filter(x=>!pred(x)),
+      transform: (arr, fn) => arr.map(fn)
+    },
+    sorting: {
+      sort: (arr, cmp=(a,b)=>a-b) => arr.sort(cmp)
+    },
+
+    // --- Helpers ---
+    parse: parseTable,
+    output: outputTable,
+
+    // --- Workflow Runner ---
+    defineWorkflow: function(name, steps){
+      this.workflows[name] = steps;
+      console.log(`Workflow '${name}' defined and stored in STL library.`);
+    },
+    runWorkflow: function(name){
+      let data = this.parse();
+      if (!data.length) { console.warn("No table data found."); return; }
+      let steps = this.workflows[name];
+      if (!steps) { console.warn("Workflow not found."); return; }
+      steps.forEach(fn => { data = fn(data); });
+      this.output(data);
+      console.log(`Workflow '${name}' executed.`);
+    },
+
+    // --- Expert Mode ---
+    enableExpert: function(){ this.expertMode = true; },
+    disableExpert: function(){ this.expertMode = false; },
+    runExpert: function(fn){
+      if (!this.expertMode) { console.warn("Enable expert mode first."); return; }
+      let data = this.parse();
+      if (!data.length) { console.warn("No table data found."); return; }
+      data = fn(data);
+      this.output(data);
+    },
+
+    // --- Export Workflows as JSON with code ---
+    exportLibrary: function(){
+      const workflowsWithCode = {};
+      for (const [name, steps] of Object.entries(this.workflows)) {
+        workflowsWithCode[name] = steps.map(fn => fn.toString());
+      }
+      const blob = new Blob([JSON.stringify(workflowsWithCode, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "STL_workflows.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    // --- Export full STL library as JS ---
+    exportFullJS: function(){
+      let workflowCode = "";
+      for (const [name, steps] of Object.entries(this.workflows)) {
+        workflowCode += `STL.defineWorkflow("${name}", [\n`;
+        steps.forEach(fn => { workflowCode += `  ${fn.toString()},\n`; });
+        workflowCode += `]);\n\n`;
+      }
+
+      const jsCode = `// STL.js Expert Edition with Workflows\n\n` +
+        `(function(){\n` +
+        `  window.STL = {};\n` + // base object, you can expand categories here
+        `})();\n\n${workflowCode}`;
+
+      const blob = new Blob([jsCode], {type: "application/javascript"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "STL_library.js";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  console.log("%cSTL.js Expert Edition loaded","color:yellow;font-weight:bold;");
+})();
+STL.defineWorkflow("cleanAndSort", [
+  d => STL.modifying.remove_if(d, r=>!r[0]),
+  d => STL.sorting.sort(d, (a,b)=>a[0].localeCompare(b[0]))
+]);
+
+STL.runWorkflow("cleanAndSort");
+
+// Export JSON with workflow code
+STL.exportLibrary();
+
+// Export full JS file with workflows included
+STL.exportFullJS();
