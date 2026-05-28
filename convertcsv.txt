@@ -1,0 +1,177 @@
+// === STL.js Expert Edition for Handsontable ===
+// Paste this once into the console on ConvertCSV.com
+
+(function(){
+  // --- Parse table into array of arrays ---
+  function parseTable() {
+    const table = document.querySelector("#dataTable table.htCore");
+    if (!table) { console.warn("No dataTable found."); return []; }
+    const rows = [];
+    table.querySelectorAll("tbody tr").forEach(tr => {
+      const cells = [];
+      tr.querySelectorAll("td").forEach(td => {
+        cells.push(td.textContent.trim());
+      });
+      rows.push(cells);
+    });
+    return rows;
+  }
+
+  // --- Write array of arrays back into table ---
+  function outputTable(arr) {
+    const table = document.querySelector("#dataTable table.htCore");
+    if (!table) { console.warn("No dataTable found."); return; }
+    const trs = table.querySelectorAll("tbody tr");
+    arr.forEach((row, i) => {
+      if (trs[i]) {
+        const tds = trs[i].querySelectorAll("td");
+        row.forEach((val, j) => {
+          if (tds[j]) tds[j].textContent = val;
+        });
+      }
+    });
+    console.log("%cHandsontable grid updated","color:orange;font-weight:bold;");
+  }
+
+  window.STL = {
+    expertMode: false,
+
+    // --- Non-modifying sequence ---
+    nonModifying: {
+      all_of: (arr, pred) => arr.every(pred),
+      any_of: (arr, pred) => arr.some(pred),
+      none_of: (arr, pred) => !arr.some(pred),
+      for_each: (arr, fn) => arr.forEach(fn),
+      count: (arr, val) => arr.filter(x => x===val).length,
+      count_if: (arr, pred) => arr.filter(pred).length,
+      find: (arr, val) => arr.find(x=>x===val),
+      find_if: (arr, pred) => arr.find(pred),
+      find_if_not: (arr, pred) => arr.find(x=>!pred(x))
+    },
+
+    // --- Modifying sequence ---
+    modifying: {
+      copy: arr => arr.slice(),
+      copy_if: (arr, pred) => arr.filter(pred),
+      fill: (n,val) => new Array(n).fill(val),
+      transform: (arr, fn) => arr.map(fn),
+      generate: (n, fn) => Array.from({length:n}, fn),
+      remove: (arr,val) => arr.filter(x=>x!==val),
+      remove_if: (arr,pred) => arr.filter(x=>!pred(x)),
+      replace: (arr,oldVal,newVal) => arr.map(x=>x===oldVal?newVal:x),
+      replace_if: (arr,pred,newVal) => arr.map(x=>pred(x)?newVal:x)
+    },
+
+    // --- Sorting & rearranging ---
+    sorting: {
+      sort: (arr, cmp=(a,b)=>a-b) => arr.sort(cmp),
+      stable_sort: (arr, cmp=(a,b)=>a-b) => [...arr].sort(cmp),
+      reverse: arr => arr.slice().reverse(),
+      rotate: (arr,n) => arr.slice(n).concat(arr.slice(0,n)),
+      shuffle: arr => arr.sort(()=>Math.random()-0.5)
+    },
+
+    // --- Numeric ---
+    numeric: {
+      accumulate: (arr, init=0) => arr.reduce((a,b)=>a+b, init),
+      inner_product: (a,b,init=0) => a.reduce((s,x,i)=>s+x*b[i], init),
+      partial_sum: arr => arr.map((_,i)=>arr.slice(0,i+1).reduce((a,b)=>a+b)),
+      adjacent_difference: arr => arr.map((x,i)=>i?x-arr[i-1]:x)
+    },
+
+    // --- Set operations ---
+    setOps: {
+      set_union: (A,B) => [...new Set([...A,...B])],
+      set_intersection: (A,B) => A.filter(x=>B.includes(x)),
+      set_difference: (A,B) => A.filter(x=>!B.includes(x)),
+      set_symmetric_difference: (A,B) => [
+        ...A.filter(x=>!B.includes(x)),
+        ...B.filter(x=>!A.includes(x))
+      ],
+      includes: (A,B) => B.every(x=>A.includes(x))
+    },
+
+    // --- Min/Max ---
+    minMax: {
+      min: arr => Math.min(...arr),
+      max: arr => Math.max(...arr),
+      minmax: arr => [Math.min(...arr), Math.max(...arr)],
+      min_element: arr => arr.reduce((a,b)=>a<b?a:b),
+      max_element: arr => arr.reduce((a,b)=>a>b?a:b),
+      clamp: (x,low,high) => Math.min(Math.max(x,low),high)
+    },
+
+    // --- Comparison ---
+    comparison: {
+      equal: (A,B) => JSON.stringify(A)===JSON.stringify(B),
+      lexicographical_compare: (A,B) => A.join("") < B.join("")
+    },
+
+    // --- Utility ---
+    utility: {
+      unique: arr => Array.from(new Set(arr)),
+      swap: (arr,i,j) => { [arr[i],arr[j]]=[arr[j],arr[i]]; return arr; }
+    },
+
+    // --- Helpers for Handsontable ---
+    parse: parseTable,
+    output: outputTable,
+
+    // --- Workflow Runner ---
+    workflows: {},
+    defineWorkflow: function(name, steps){
+      this.workflows[name] = steps;
+      console.log(`Workflow '${name}' defined.`);
+    },
+    runWorkflow: function(name){
+      let data = this.parse();
+      if (!data.length) { console.warn("No table data found."); return; }
+      let steps = this.workflows[name];
+      if (!steps) { console.warn("Workflow not found."); return; }
+      steps.forEach(fn => { data = fn(data); });
+      this.output(data);
+      console.log(`Workflow '${name}' executed.`);
+    },
+
+    // --- Expert Mode ---
+    enableExpert: function(){
+      this.expertMode = true;
+      console.log("%cExpert mode enabled","color:red;font-weight:bold;");
+    },
+    disableExpert: function(){
+      this.expertMode = false;
+      console.log("%cExpert mode disabled","color:gray;font-weight:bold;");
+    },
+    runExpert: function(fn){
+      if (!this.expertMode) {
+        console.warn("Expert mode is off. Enable with STL.enableExpert().");
+        return;
+      }
+      let data = this.parse();
+      if (!data.length) { console.warn("No table data found."); return; }
+      data = fn(data);
+      this.output(data);
+      console.log("Expert function executed.");
+    }
+  };
+
+  console.log("%cSTL.js Expert Edition loaded for Handsontable","color:yellow;font-weight:bold;");
+})();
+
+
+STL.enableExpert();
+
+// Uppercase column A safely
+STL.runExpert(data => data.map(r => [
+  (r[0] && typeof r[0] === "string") ? r[0].toUpperCase() : r[0],
+  r[1],
+  r[2]
+]));
+
+// Define workflow: remove empty rows, sort by first column
+STL.defineWorkflow("cleanAndSort", [
+  d => STL.modifying.remove_if(d, r=>!r[0]),
+  d => STL.sorting.sort(d, (a,b)=>a[0].localeCompare(b[0]))
+]);
+
+STL.runWorkflow("cleanAndSort");
